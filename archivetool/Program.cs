@@ -66,7 +66,7 @@ namespace archivetool
 
         private static void Archive(string name)
         {
-            ZipFile.CreateFromDirectory(_downloadPath, Path.Combine(Directory.GetCurrentDirectory(), $"{name.Split('/').Last()} {DateTime.Now.ToString("dMyyyy")}.zip"));
+            ZipFile.CreateFromDirectory(_downloadPath, Path.Combine(Directory.GetCurrentDirectory(), $"{name.Split('/').Last()} {DateTime.Now.ToString("dMyyyy")}.zip"), CompressionLevel.SmallestSize, false);
             Console.WriteLine("Archive created.");
             Cleanup();
             Console.WriteLine("Input an URL to archive.");
