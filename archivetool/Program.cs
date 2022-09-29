@@ -12,88 +12,127 @@ namespace archivetool
 
         private static async Task Main(string[] args)
         {
-            _exePath = Path.Combine(Directory.GetCurrentDirectory(), "yt-dlp.exe");
-            _downloadPath = Path.Combine(Directory.GetCurrentDirectory(), "downloads");
-            Cleanup();
-            if (!File.Exists(_exePath))
+            try
             {
-                Console.WriteLine("yt-dlp not found, downloading..");
-                using (var http = new HttpClient())
+                _exePath = Path.Combine(Directory.GetCurrentDirectory(), "yt-dlp.exe");
+                _downloadPath = Path.Combine(Directory.GetCurrentDirectory(), "downloads");
+                if (!Directory.Exists(_downloadPath))
                 {
-                    var bytes = await http.GetByteArrayAsync(DOWNLOADER_EXE_URL);
-                    await File.WriteAllBytesAsync(_exePath, bytes);
+                    Directory.CreateDirectory(_downloadPath);
+                    Console.WriteLine("Download folder created.");
                 }
-                Console.WriteLine("yt-dlp downloaded successfully.");
+                Cleanup();
+                if (!File.Exists(_exePath))
+                {
+                    Console.WriteLine("yt-dlp not found, downloading..");
+                    using (var http = new HttpClient())
+                    {
+                        var bytes = await http.GetByteArrayAsync(DOWNLOADER_EXE_URL);
+                        await File.WriteAllBytesAsync(_exePath, bytes);
+                    }
+                    Console.WriteLine("yt-dlp downloaded successfully.");
+                }
+                else
+                {
+                    Console.WriteLine("yt-dlp found, checking for updates.");
+                    Process.Start(new ProcessStartInfo(EXE_NAME, "-U") { UseShellExecute = true });
+                }
+                Console.WriteLine("Input an URL to archive.");
+                CheckInput();
             }
-            else
+            catch (Exception ex)
             {
-                Console.WriteLine("yt-dlp found, checking for updates.");
-                Process.Start(new ProcessStartInfo(EXE_NAME, "-U") { UseShellExecute = true });
+                Debug.WriteLine($"Main failed: {ex.Message}");
+                throw;
             }
-            if (!Directory.Exists(_downloadPath))
+            finally
             {
-                Directory.CreateDirectory(_downloadPath);
-                Console.WriteLine("Download folder created.");
+                Console.ReadKey();
             }
-            Console.WriteLine("Input an URL to archive.");
-            CheckInput();
-            Console.ReadKey();
         }
 
         private static void Cleanup()
         {
-            var files = Directory.GetFiles(_downloadPath);
-            if (files.Length == 0) return;
-            foreach (var file in files)
+            try
             {
-                File.Delete(file);
+                var files = Directory.GetFiles(_downloadPath);
+                if (files.Length == 0) return;
+                foreach (var file in files)
+                {
+                    File.Delete(file);
+                }
+                Console.WriteLine($"{files.Length} media files deleted.");
             }
-            Console.WriteLine($"{files.Length} media files deleted.");
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Cleanup faild: {ex.Message}");
+            }
         }
 
         private static void CheckInput()
         {
-            var url = Console.ReadLine();
-            if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
+            try
             {
-                Console.WriteLine("Invalid URL.");
-                CheckInput();
-                return;
+                var url = Console.ReadLine();
+                if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
+                {
+                    Console.WriteLine("Invalid URL.");
+                    CheckInput();
+                    return;
+                }
+                Console.WriteLine("URL is valid. Starting.");
+                StartDownload(url);
             }
-            Console.WriteLine("URL is valid. Starting.");
-            StartDownload(url);
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"CheckInput failed: {ex.Message}");
+            }
         }
 
         private static void Archive(string name)
         {
-            ZipFile.CreateFromDirectory(_downloadPath, Path.Combine(Directory.GetCurrentDirectory(), $"{name.Split('/').Last()} {DateTime.Now.ToString("dMyyyy")}.zip"), CompressionLevel.SmallestSize, false);
-            Console.WriteLine("Archive created.");
-            Cleanup();
-            Console.WriteLine("Input an URL to archive.");
-            CheckInput();
+            try
+            {
+                ZipFile.CreateFromDirectory(_downloadPath, Path.Combine(Directory.GetCurrentDirectory(), $"{name.Split('/').Last()} {DateTime.Now.ToString("dMyyyy")}.zip"), CompressionLevel.SmallestSize, false);
+                Console.WriteLine("Archive created.");
+                Cleanup();
+                Console.WriteLine("Input an URL to archive.");
+                CheckInput();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Archiving failed: {ex.Message}");
+            }
         }
 
         private static async void StartDownload(string url)
         {
-            var process = Process.Start(new ProcessStartInfo(EXE_NAME, $"{url} -P downloads") { UseShellExecute = true });
-            // Not even needed?
-            if (process?.Responding == true)
+            try
             {
-                await process?.WaitForExitAsync();
+                var process = Process.Start(new ProcessStartInfo(EXE_NAME, $"{url} -P downloads") { UseShellExecute = true });
+                // Not even needed?
+                if (process?.Responding == true)
+                {
+                    await process?.WaitForExitAsync();
+                }
+                else
+                {
+                    Console.WriteLine("Error, process is not responding.");
+                    return;
+                }
+                var files = Directory.GetFiles(_downloadPath);
+                if (files.Length == 0)
+                {
+                    Console.WriteLine("No files downloaded.");
+                    return;
+                }
+                Console.WriteLine($"Download completed, {files.Length} file(s) downloaded. Archiving.");
+                Archive(url);
             }
-            else
+            catch (Exception ex)
             {
-                Console.WriteLine("Error, process is not responding.");
-                return;
+                Debug.WriteLine($"StartDownload failed: {ex.Message}");
             }
-            var files = Directory.GetFiles(_downloadPath);
-            if (files.Length == 0)
-            {
-                Console.WriteLine("No files downloaded.");
-                return;
-            }
-            Console.WriteLine($"Download completed, {files.Length} file(s) downloaded. Archiving.");
-            Archive(url);
         }
     }
 }
